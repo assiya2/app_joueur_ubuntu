@@ -60,7 +60,7 @@ trainerSocket.on('disconnect', () => {
 // === CORRECTION PRINCIPALE ===
 // Le serveur envoie 'audio-stream', pas 'audio-chunk'
 trainerSocket.on('audio-stream', (audioData) => {
-  console.log('🎵 Audio reçu:', audioData.length, 'octets');
+  console.log(' Audio reçu:', audioData.length, 'octets');
 
   try {
     if (!speakerReady) {
