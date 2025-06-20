@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Interface Joueur</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .player-container {
+      display: flex;
+      gap: 20px;
+    }
+    .player-card {
+      flex: 2;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    .status-card {
+      flex: 1;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    .avatar-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .player-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #007bff;
+    }
+    .player-info {
+      margin-bottom: 20px;
+    }
+    .player-name {
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 5px;
+    }
+    .player-position {
+      font-size: 18px;
+      text-align: center;
+      color: #666;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      width: 100%;
+    }
+    button:hover {
+      background-color: #0069d9;
+    }
+    .status-item {
+      margin-bottom: 15px;
+    }
+    .status-label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 5px;
+    }
+    .status-value {
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .connected {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .disconnected {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .receiving {
+      background-color: #fff3cd;
+      color: #856404;
+      animation: pulse 1s infinite;
+    }
+    .audio-panel {
+      background-color: #e3f2fd;
+      border: 2px solid #2196f3;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+      text-align: center;
+    }
+    .audio-panel.active {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    h1 {
+      color: #007bff;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>🏃 Interface Joueur</h1>
+    
+    <div class="player-container">
+      <div class="player-card">
+        <div v-if="!player.isEditing">
+          <div class="avatar-container">
+            <img :src="player.avatar || 'https://via.placeholder.com/100?text=Photo'" class="player-avatar">
+          </div>
+          
+          <div class="player-info">
+            <div class="player-name">{{ player.nom || "Nom du joueur" }}</div>
+            <div class="player-position">{{ player.position || "Position" }}</div>
+          </div>
+          
+          <button @click="editPlayer">Modifier</button>
+        </div>
+        
+        <form v-if="player.isEditing" @submit.prevent="savePlayer">
+          <div class="form-group">
+            <label for="nom">Nom du joueur:</label>
+            <input type="text" id="nom" v-model="player.nom" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="position">Position:</label>
+            <select id="position" v-model="player.position" required>
+              <option value="">Sélectionnez une position</option>
+              <option value="Gardien">Gardien</option>
+              <option value="Défenseur">Défenseur</option>
+              <option value="Milieu">Milieu</option>
+              <option value="Attaquant">Attaquant</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="avatar">URL de la photo:</label>
+            <input type="text" id="avatar" v-model="player.avatar" placeholder="https://...">
+          </div>
+          
+          <button type="submit">Enregistrer</button>
+        </form>
+
+        <!-- Panel Audio -->
+        <div v-if="audioStatus.isReceiving" class="audio-panel active">
+          <h3>🎤 Communication en cours</h3>
+          <p><strong>{{ audioStatus.coachName }}</strong></p>
+          <p>{{ audioStatus.message }}</p>
+          <div style="font-size: 12px; color: #666; margin-top: 10px;">
+            🔊 Volume: {{ audioStatus.volume }}%
+          </div>
+        </div>
+      </div>
+      
+      <div class="status-card">
+        <h2>Statut</h2>
+        
+        <div class="status-item">
+          <span class="status-label">Connexion:</span>
+          <span class="status-value" :class="player.status === 'connecté' ? 'connected' : 'disconnected'">
+            {{ player.status }}
+          </span>
+        </div>
+        
+        <div class="status-item">
+          <span class="status-label">Audio:</span>
+          <span class="status-value" :class="audioStatus.isReceiving ? 'receiving' : ''">
+            {{ audioStatus.text }}
+          </span>
+        </div>
+
+        <div class="status-item">
+          <span class="status-label">Dernière communication:</span>
+          <div style="font-size: 12px; color: #666;">
+            {{ audioStatus.lastMessage || 'Aucune' }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // === CORRECTION PRINCIPALE ===
+    // Connexion au serveur entraîneur (changez l'IP si nécessaire)
+    const socket = io('http://192.168.153.251:4000', {
+      transports: ['websocket'],
+      reconnection: true
+    });
+    
+    new Vue({
+      el: '#app',
+      data: {
+        player: {
+          nom: '',
+          position: '',
+          avatar: '',
+          isEditing: true,
+          status: 'déconnecté'
+        },
+        audioStatus: {
+          isReceiving: false,
+          text: 'Aucun message',
+          coachName: '',
+          message: '',
+          volume: 0,
+          lastMessage: null
+        },
+        audioContext: null,
+        audioQueue: []
+      },
+      created() {
+        this.initSocket();
+        this.initAudio();
+      },
+      methods: {
+        initSocket() {
+          socket.on('connect', () => {
+            console.log('Connecté au serveur entraîneur');
+            this.player.status = 'connecté';
+            
+            if (this.player.nom) {
+              socket.emit('register-player', {
+                nom: this.player.nom,
+                position: this.player.position,
+                avatar: this.player.avatar
+              });
+              console.log(`Joueur enregistré: ${this.player.nom}`);
+            }
+          });
+
+          socket.on('disconnect', () => {
+            console.log(' Déconnecté du serveur');
+            this.player.status = 'déconnecté';
+            this.audioStatus.isReceiving = false;
+            this.audioStatus.text = 'Déconnecté';
+          });
+
+          // === ÉVÉNEMENT AUDIO PRINCIPAL ===
+          socket.on('audio-stream', (audioData) => {
+            console.log(' Audio reçu:', audioData.length, 'octets');
+            this.playAudioData(audioData);
+          });
+
+          // Notification de début de communication
+          socket.on('coach-streaming', (data) => {
+            console.log(` ${data.coachName} commence une communication`);
+            if (data.targets.includes(this.player.nom)) {
+              console.log(' Je suis ciblé !');
+              this.audioStatus.isReceiving = true;
+              this.audioStatus.coachName = data.coachName;
+              this.audioStatus.text = 'Communication en cours';
+              this.audioStatus.message = `Communication de ${data.coachName}`;
+              this.audioStatus.lastMessage = new Date().toLocaleTimeString();
+            }
+          });
+
+          // Notification de fin de communication
+          socket.on('coach-stream-stopped', (data) => {
+            console.log('Communication arrêtée');
+            this.audioStatus.isReceiving = false;
+            this.audioStatus.text = 'Communication terminée';
+            this.audioStatus.message = '';
+            
+            setTimeout(() => {
+              this.audioStatus.text = 'Aucun message';
+            }, 3000);
+          });
+        },
+
+        async initAudio() {
+          try {
+            // Initialiser le contexte audio
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+              sampleRate: 16000
+            });
+            console.log(' Contexte audio initialisé');
+          } catch (error) {
+            console.error('Erreur initialisation audio:', error);
+          }
+        },
+
+        async playAudioData(audioData) {
+          if (!this.audioContext) {
+            console.warn('Contexte audio non initialisé');
+            return;
+          }
+
+          try {
+            // S'assurer que le contexte audio est actif
+            if (this.audioContext.state === 'suspended') {
+              await this.audioContext.resume();
+            }
+
+            // Convertir les données audio en ArrayBuffer si nécessaire
+            let arrayBuffer;
+            if (audioData instanceof ArrayBuffer) {
+              arrayBuffer = audioData;
+            } else if (audioData.buffer) {
+              arrayBuffer = audioData.buffer;
+            } else {
+              console.error(' Format audio non supporté');
+              return;
+            }
+
+            // Convertir en Int16Array puis Float32Array
+            const int16Array = new Int16Array(arrayBuffer);
+            const float32Array = new Float32Array(int16Array.length);
+            
+            for (let i = 0; i < int16Array.length; i++) {
+              float32Array[i] = int16Array[i] / 32768.0;
+            }
+
+            // Créer un buffer audio
+            const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 16000);
+            audioBuffer.copyToChannel(float32Array, 0);
+
+            // Jouer le son
+            const source = this.audioContext.createBufferSource();
+            const gainNode = this.audioContext.createGain();
+            
+            source.buffer = audioBuffer;
+            source.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            // Contrôle du volume
+            gainNode.gain.value = 1.0;
+            this.audioStatus.volume = 100;
+            
+            source.start(0);
+            console.log(' Audio joué');
+
+          } catch (error) {
+            console.error(' Erreur lecture audio:', error);
+          }
+        },
+
+        editPlayer() {
+          this.player.isEditing = true;
+        },
+
+        savePlayer() {
+          this.player.isEditing = false;
+          
+          // Enregistrer sur le serveur
+          socket.emit('register-player', {
+            nom: this.player.nom,
+            position: this.player.position,
+            avatar: this.player.avatar
+          });
+          
+          // Sauvegarder localement
+          localStorage.setItem('playerData', JSON.stringify({
+            nom: this.player.nom,
+            position: this.player.position,
+            avatar: this.player.avatar
+          }));
+
+          console.log(` Joueur sauvegardé: ${this.player.nom}`);
+        }
+      },
+
+      mounted() {
+        // Charger les données sauvegardées
+        const savedData = localStorage.getItem('playerData');
+        if (savedData) {
+          const data = JSON.parse(savedData);
+          this.player.nom = data.nom;
+          this.player.position = data.position;
+          this.player.avatar = data.avatar;
+          this.player.isEditing = false;
+          
+          console.log(`📱 Données chargées: ${this.player.nom}`);
+        }
+
+        // Activer l'audio au premier clic
+        document.addEventListener('click', () => {
+          if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+          }
+        }, { once: true });
+      }
+    });
+  </script>
+</body>
+</html>
