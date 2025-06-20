@@ -134,7 +134,7 @@
 </head>
 <body>
   <div id="app">
-    <h1>🏃 Interface Joueur</h1>
+    <h1> Interface Joueur</h1>
     
     <div class="player-container">
       <div class="player-card">
@@ -178,11 +178,11 @@
 
         <!-- Panel Audio -->
         <div v-if="audioStatus.isReceiving" class="audio-panel active">
-          <h3>🎤 Communication en cours</h3>
+          <h3> Communication en cours</h3>
           <p><strong>{{ audioStatus.coachName }}</strong></p>
           <p>{{ audioStatus.message }}</p>
           <div style="font-size: 12px; color: #666; margin-top: 10px;">
-            🔊 Volume: {{ audioStatus.volume }}%
+             Volume: {{ audioStatus.volume }}%
           </div>
         </div>
       </div>
@@ -404,7 +404,7 @@
           this.player.avatar = data.avatar;
           this.player.isEditing = false;
           
-          console.log(`📱 Données chargées: ${this.player.nom}`);
+          console.log(`Données chargées: ${this.player.nom}`);
         }
 
         // Activer l'audio au premier clic
